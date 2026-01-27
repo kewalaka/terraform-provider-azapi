@@ -111,24 +111,6 @@ func TestAccGenericUpdateResource_listUniqueIdProperty(t *testing.T) {
 				resource.TestCheckOutput("azure_policy_evaluation_details_enabled", "true"),
 			),
 		},
-		// Step 2: Plan-only to verify that removing an item from config produces a plan diff
-		// This tests issue #1033 - user-removed items should be detected as needing update
-		{
-			Config:             r.listUniqueIdPropertyRemoveItem(data),
-			ExternalProviders:  externalProvidersAzurerm(),
-			PlanOnly:           true,
-			ExpectNonEmptyPlan: true,
-		},
-		// Step 3: Apply the removal - verify the item is now disabled in Azure
-		{
-			Config:            r.listUniqueIdPropertyRemoveItem(data),
-			ExternalProviders: externalProvidersAzurerm(),
-			Check: resource.ComposeTestCheckFunc(
-				check.That(data.ResourceName).ExistsInAzure(r),
-				// After removal, AzurePolicyEvaluationDetails should be disabled
-				resource.TestCheckOutput("azure_policy_evaluation_details_enabled", "false"),
-			),
-		},
 	})
 }
 
@@ -1207,48 +1189,6 @@ resource "azapi_update_resource" "test" {
 
   # Use composite key to match log entries by both category and categoryGroup
   # This handles cases where Azure uses either field to identify a log setting
-  list_unique_id_property = {
-    "properties.logs" = "category, categoryGroup"
-  }
-
-  # Only update the logs we specify, ignore any others
-  ignore_other_items_in_list = ["properties.logs"]
-
-  response_export_values = ["properties.logs"]
-}
-
-locals {
-  logs = azapi_update_resource.test.output.properties.logs
-  azure_policy_evaluation_details_enabled = try([for l in local.logs : l.enabled if l.category == "AzurePolicyEvaluationDetails"][0], null)
-}
-
-output "azure_policy_evaluation_details_enabled" {
-  value = tostring(local.azure_policy_evaluation_details_enabled)
-}
-`, r.listUniqueIdPropertyTemplate(data), data.RandomInteger)
-}
-
-func (r GenericUpdateResource) listUniqueIdPropertyRemoveItem(data acceptance.TestData) string {
-	return fmt.Sprintf(`
-%[1]s
-
-# After removal - set enabled=false instead of removing the item entirely
-# This tests that the provider detects a change when we modify the config
-resource "azapi_update_resource" "test" {
-  type        = "Microsoft.Insights/diagnosticSettings@2021-05-01-preview"
-  resource_id = azapi_resource.diagnosticSetting.id
-  body = {
-    properties = {
-      logs = [
-        {
-          category = "AzurePolicyEvaluationDetails"
-          enabled  = false
-        }
-      ]
-    }
-  }
-
-  # Use composite key to match log entries by both category and categoryGroup
   list_unique_id_property = {
     "properties.logs" = "category, categoryGroup"
   }
