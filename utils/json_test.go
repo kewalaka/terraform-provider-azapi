@@ -1794,3 +1794,288 @@ func Test_UpdateObject_CompositeKeyIdentifier(t *testing.T) {
 		})
 	}
 }
+
+func Test_ExtractManagedListItemIDs(t *testing.T) {
+	testcases := []struct {
+		Name                   string
+		InputJson              string
+		IgnoreOtherItemsInList []string
+		ListUniqueIdProperty   map[string]string
+		Expected               map[string][]string
+	}{
+		{
+			Name: "Single list with single key",
+			InputJson: `{
+  "properties": {
+    "logs": [
+      { "category": "AuditEvent", "enabled": true },
+      { "category": "Alert", "enabled": false }
+    ]
+  }
+}`,
+			IgnoreOtherItemsInList: []string{"properties.logs"},
+			ListUniqueIdProperty: map[string]string{
+				"properties.logs": "category",
+			},
+			Expected: map[string][]string{
+				"properties.logs": {"AuditEvent", "Alert"},
+			},
+		},
+		{
+			Name: "Composite key - mutually exclusive fields",
+			InputJson: `{
+  "properties": {
+    "logs": [
+      { "category": "AuditEvent", "enabled": true },
+      { "categoryGroup": "allLogs", "enabled": true }
+    ]
+  }
+}`,
+			IgnoreOtherItemsInList: []string{"properties.logs"},
+			ListUniqueIdProperty: map[string]string{
+				"properties.logs": "category, categoryGroup",
+			},
+			Expected: map[string][]string{
+				"properties.logs": {"AuditEvent_", "_allLogs"},
+			},
+		},
+		{
+			Name: "Composite key - both fields present",
+			InputJson: `{
+  "items": [
+    { "type": "A", "region": "us", "value": 1 },
+    { "type": "B", "region": "eu", "value": 2 }
+  ]
+}`,
+			IgnoreOtherItemsInList: []string{"items"},
+			ListUniqueIdProperty: map[string]string{
+				"items": "type, region",
+			},
+			Expected: map[string][]string{
+				"items": {"A_us", "B_eu"},
+			},
+		},
+		{
+			Name: "Empty list returns no entry",
+			InputJson: `{
+  "properties": {
+    "logs": []
+  }
+}`,
+			IgnoreOtherItemsInList: []string{"properties.logs"},
+			ListUniqueIdProperty: map[string]string{
+				"properties.logs": "category",
+			},
+			Expected: map[string][]string{},
+		},
+		{
+			Name: "List path does not exist",
+			InputJson: `{
+  "properties": {
+    "other": "value"
+  }
+}`,
+			IgnoreOtherItemsInList: []string{"properties.logs"},
+			ListUniqueIdProperty: map[string]string{
+				"properties.logs": "category",
+			},
+			Expected: map[string][]string{},
+		},
+		{
+			Name: "Multiple lists",
+			InputJson: `{
+  "properties": {
+    "logs": [
+      { "category": "AuditEvent" }
+    ],
+    "metrics": [
+      { "name": "AllMetrics" }
+    ]
+  }
+}`,
+			IgnoreOtherItemsInList: []string{"properties.logs", "properties.metrics"},
+			ListUniqueIdProperty: map[string]string{
+				"properties.logs":    "category",
+				"properties.metrics": "name",
+			},
+			Expected: map[string][]string{
+				"properties.logs":    {"AuditEvent"},
+				"properties.metrics": {"AllMetrics"},
+			},
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.Name, func(t *testing.T) {
+			var input map[string]interface{}
+			if err := json.Unmarshal([]byte(tc.InputJson), &input); err != nil {
+				t.Fatalf("failed to unmarshal input: %v", err)
+			}
+
+			got := utils.ExtractManagedListItemIDs(input, tc.IgnoreOtherItemsInList, tc.ListUniqueIdProperty)
+
+			if !reflect.DeepEqual(got, tc.Expected) {
+				gotBytes, _ := json.MarshalIndent(got, "", "  ")
+				expBytes, _ := json.MarshalIndent(tc.Expected, "", "  ")
+				t.Fatalf("unexpected result:\n got: %s\nwant: %s", string(gotBytes), string(expBytes))
+			}
+		})
+	}
+}
+
+func Test_HasRemovedManagedListItems(t *testing.T) {
+	testcases := []struct {
+		Name                   string
+		ConfigJson             string
+		RemoteJson             string
+		IgnoreOtherItemsInList []string
+		ListUniqueIdProperty   map[string]string
+		PreviouslyManagedItems map[string][]string
+		Expected               bool
+	}{
+		{
+			Name: "No items removed - same items",
+			ConfigJson: `{
+  "properties": {
+    "logs": [
+      { "category": "AuditEvent", "enabled": true }
+    ]
+  }
+}`,
+			RemoteJson: `{
+  "properties": {
+    "logs": [
+      { "category": "AuditEvent", "enabled": true }
+    ]
+  }
+}`,
+			IgnoreOtherItemsInList: []string{"properties.logs"},
+			ListUniqueIdProperty: map[string]string{
+				"properties.logs": "category",
+			},
+			PreviouslyManagedItems: map[string][]string{
+				"properties.logs": {"AuditEvent"},
+			},
+			Expected: false,
+		},
+		{
+			Name: "Item removed - should return true",
+			ConfigJson: `{
+  "properties": {
+    "logs": [
+      { "category": "AuditEvent", "enabled": true }
+    ]
+  }
+}`,
+			RemoteJson: `{
+  "properties": {
+    "logs": [
+      { "category": "AuditEvent", "enabled": true },
+      { "category": "Alert", "enabled": true }
+    ]
+  }
+}`,
+			IgnoreOtherItemsInList: []string{"properties.logs"},
+			ListUniqueIdProperty: map[string]string{
+				"properties.logs": "category",
+			},
+			PreviouslyManagedItems: map[string][]string{
+				"properties.logs": {"AuditEvent", "Alert"},
+			},
+			Expected: true,
+		},
+		{
+			Name: "Item added - should return false",
+			ConfigJson: `{
+  "properties": {
+    "logs": [
+      { "category": "AuditEvent", "enabled": true },
+      { "category": "Alert", "enabled": true }
+    ]
+  }
+}`,
+			RemoteJson: `{
+  "properties": {
+    "logs": [
+      { "category": "AuditEvent", "enabled": true }
+    ]
+  }
+}`,
+			IgnoreOtherItemsInList: []string{"properties.logs"},
+			ListUniqueIdProperty: map[string]string{
+				"properties.logs": "category",
+			},
+			PreviouslyManagedItems: map[string][]string{
+				"properties.logs": {"AuditEvent"},
+			},
+			Expected: false,
+		},
+		{
+			Name: "Empty previous state - should return false",
+			ConfigJson: `{
+  "properties": {
+    "logs": [
+      { "category": "AuditEvent", "enabled": true }
+    ]
+  }
+}`,
+			RemoteJson: `{
+  "properties": {
+    "logs": [
+      { "category": "AuditEvent", "enabled": true }
+    ]
+  }
+}`,
+			IgnoreOtherItemsInList: []string{"properties.logs"},
+			ListUniqueIdProperty: map[string]string{
+				"properties.logs": "category",
+			},
+			PreviouslyManagedItems: map[string][]string{},
+			Expected:               false,
+		},
+		{
+			Name: "Composite key removal - category field",
+			ConfigJson: `{
+  "properties": {
+    "logs": [
+      { "categoryGroup": "allLogs", "enabled": true }
+    ]
+  }
+}`,
+			RemoteJson: `{
+  "properties": {
+    "logs": [
+      { "category": "AuditEvent", "enabled": true },
+      { "categoryGroup": "allLogs", "enabled": true }
+    ]
+  }
+}`,
+			IgnoreOtherItemsInList: []string{"properties.logs"},
+			ListUniqueIdProperty: map[string]string{
+				"properties.logs": "category, categoryGroup",
+			},
+			PreviouslyManagedItems: map[string][]string{
+				"properties.logs": {"AuditEvent_", "_allLogs"},
+			},
+			Expected: true, // AuditEvent was removed
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.Name, func(t *testing.T) {
+			var config, remote map[string]interface{}
+			if err := json.Unmarshal([]byte(tc.ConfigJson), &config); err != nil {
+				t.Fatalf("failed to unmarshal config: %v", err)
+			}
+			if err := json.Unmarshal([]byte(tc.RemoteJson), &remote); err != nil {
+				t.Fatalf("failed to unmarshal remote: %v", err)
+			}
+
+			got := utils.HasRemovedManagedListItems(config, remote, tc.IgnoreOtherItemsInList, tc.ListUniqueIdProperty, tc.PreviouslyManagedItems)
+
+			if got != tc.Expected {
+				t.Fatalf("unexpected result: got %v, want %v", got, tc.Expected)
+			}
+		})
+	}
+}

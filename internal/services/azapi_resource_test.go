@@ -422,6 +422,25 @@ func TestAccGenericResource_listUniqueIdProperty(t *testing.T) {
 				resource.TestCheckOutput("azure_policy_evaluation_details_enabled", "true"),
 			),
 		},
+		// Step 3: Plan-only to verify that removing an item from config produces a plan diff
+		// This tests issue #1033 - user-removed items should be detected as needing update
+		{
+			Config:             r.listUniqueIdPropertyRemoveItem(data),
+			ExternalProviders:  externalProvidersAzurerm(),
+			PlanOnly:           true,
+			ExpectNonEmptyPlan: true,
+		},
+		// Step 4: Apply the removal - verify the item is now disabled in Azure
+		{
+			Config:            r.listUniqueIdPropertyRemoveItem(data),
+			ExternalProviders: externalProvidersAzurerm(),
+			Check: resource.ComposeTestCheckFunc(
+				check.That(data.ResourceName).ExistsInAzure(r),
+				resource.TestCheckOutput("audit_event_enabled", "true"),
+				// After removal, AzurePolicyEvaluationDetails should be disabled
+				resource.TestCheckOutput("azure_policy_evaluation_details_enabled", "false"),
+			),
+		},
 	})
 }
 
@@ -4448,6 +4467,56 @@ resource "azapi_resource" "test" {
           category = "AzurePolicyEvaluationDetails"
           enabled  = true
         }
+      ]
+    }
+  }
+
+  # Use composite key to match log entries by both category and categoryGroup
+  list_unique_id_property = {
+    "properties.logs" = "category, categoryGroup"
+  }
+
+  # Only manage the logs we specify, ignore any others Azure may add
+  ignore_other_items_in_list = ["properties.logs"]
+
+  ignore_missing_property = true
+
+  response_export_values = ["properties.logs"]
+}
+
+locals {
+  logs = azapi_resource.test.output.properties.logs
+  audit_event_enabled = try([for l in local.logs : l.enabled if l.category == "AuditEvent"][0], null)
+  azure_policy_evaluation_details_enabled = try([for l in local.logs : l.enabled if l.category == "AzurePolicyEvaluationDetails"][0], null)
+}
+
+output "audit_event_enabled" {
+  value = tostring(local.audit_event_enabled)
+}
+
+output "azure_policy_evaluation_details_enabled" {
+  value = tostring(local.azure_policy_evaluation_details_enabled)
+}
+`, r.listUniqueIdPropertyTemplate(data), data.RandomInteger)
+}
+
+func (r GenericResource) listUniqueIdPropertyRemoveItem(data acceptance.TestData) string {
+	return fmt.Sprintf(`
+%[1]s
+
+resource "azapi_resource" "test" {
+  type      = "Microsoft.Insights/diagnosticSettings@2021-05-01-preview"
+  parent_id = azapi_resource.vault.id
+  name      = "acctest%[2]d"
+  body = {
+    properties = {
+      workspaceId = azapi_resource.workspace.id
+      logs = [
+        {
+          category = "AuditEvent"
+          enabled  = true
+        }
+        # AzurePolicyEvaluationDetails removed - should trigger plan diff
       ]
     }
   }

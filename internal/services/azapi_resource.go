@@ -620,12 +620,29 @@ func (r *AzapiResource) ModifyPlan(ctx context.Context, request resource.ModifyP
 				m[p] = true
 			}
 			option.IgnoreOtherItemsInList = m
-		}
-		remoteBody := utils.UpdateObject(configBody, responseBody, option)
-		// suppress the change if the remote body is equal to the config body
-		if reflect.DeepEqual(remoteBody, configBody) {
-			plan.Body = state.Body
-			plan.Type = state.Type
+
+			// We use private state to identify list items managed by the user
+			previouslyManaged, diags := managedListItemsPrivateMgr.Get(ctx, request.Private)
+			if response.Diagnostics.Append(diags...); response.Diagnostics.HasError() {
+				return
+			}
+
+			if utils.HasRemovedManagedListItems(configBody, responseBody.(map[string]interface{}), paths, option.ListUniqueIdProperty, previouslyManaged) {
+				tflog.Debug(ctx, "Previously managed list items removed from config, skipping plan suppression")
+			} else {
+				remoteBody := utils.UpdateObject(configBody, responseBody, option)
+				if reflect.DeepEqual(remoteBody, configBody) {
+					plan.Body = state.Body
+					plan.Type = state.Type
+				}
+			}
+		} else {
+			remoteBody := utils.UpdateObject(configBody, responseBody, option)
+			// suppress the change if the remote body is equal to the config body
+			if reflect.DeepEqual(remoteBody, configBody) {
+				plan.Body = state.Body
+				plan.Type = state.Type
+			}
 		}
 	}
 
@@ -991,6 +1008,23 @@ func (r *AzapiResource) CreateUpdate(ctx context.Context, requestConfig tfsdk.Co
 		diagnostics.Append(ephemeralBodyPrivateMgr.Set(ctx, privateData, writeOnlyBytes)...)
 	} else {
 		diagnostics.Append(ephemeralBodyPrivateMgr.Set(ctx, privateData, nil)...)
+	}
+
+	// Store managed list item identifiers in private state for ignore_other_items_in_list tracking
+	if paths := common.AsStringList(plan.IgnoreOtherItemsInList); len(paths) != 0 {
+		configBody := make(map[string]interface{})
+		if err := unmarshalBody(config.Body, &configBody); err != nil {
+			tflog.Warn(ctx, "Failed to unmarshal config body for managed item tracking", map[string]interface{}{"error": err.Error()})
+		} else {
+			managedItems := utils.ExtractManagedListItemIDs(
+				configBody,
+				paths,
+				common.AsMapOfString(plan.ListUniqueIdProperty),
+			)
+			diagnostics.Append(managedListItemsPrivateMgr.Set(ctx, privateData, managedItems)...)
+		}
+	} else {
+		diagnostics.Append(managedListItemsPrivateMgr.Set(ctx, privateData, nil)...)
 	}
 }
 
