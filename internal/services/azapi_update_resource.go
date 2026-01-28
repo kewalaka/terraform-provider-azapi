@@ -529,6 +529,23 @@ func (r *AzapiUpdateResource) CreateUpdate(ctx context.Context, requestConfig tf
 	} else {
 		diagnostics.Append(ephemeralBodyPrivateMgr.Set(ctx, privateData, nil)...)
 	}
+
+	// Store managed list item identifiers in private state for ignore_other_items_in_list tracking
+	if paths := common.AsStringList(model.IgnoreOtherItemsInList); len(paths) != 0 {
+		configBody := make(map[string]interface{})
+		if err := unmarshalBody(config.Body, &configBody); err != nil {
+			tflog.Warn(ctx, "Failed to unmarshal config body for managed item tracking", map[string]interface{}{"error": err.Error()})
+		} else {
+			managedItems := utils.ExtractManagedListItemIDs(
+				configBody,
+				paths,
+				common.AsMapOfString(model.ListUniqueIdProperty),
+			)
+			diagnostics.Append(managedListItemsPrivateMgr.Set(ctx, privateData, managedItems)...)
+		}
+	} else {
+		diagnostics.Append(managedListItemsPrivateMgr.Set(ctx, privateData, nil)...)
+	}
 }
 
 func (r *AzapiUpdateResource) Read(ctx context.Context, request resource.ReadRequest, response *resource.ReadResponse) {

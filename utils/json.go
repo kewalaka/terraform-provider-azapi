@@ -497,3 +497,126 @@ func isZeroValue(value interface{}) bool {
 	}
 	return false
 }
+
+// ExtractManagedListItemIDs extracts identifiers for list items at paths specified in
+// ignoreOtherItemsInList using the keys defined in listUniqueIdProperty.
+// Returns a map of path -> list of item identifiers.
+func ExtractManagedListItemIDs(body map[string]interface{}, ignoreOtherItemsInList []string, listUniqueIdProperty map[string]string) map[string][]string {
+	if len(ignoreOtherItemsInList) == 0 {
+		return nil
+	}
+
+	result := make(map[string][]string)
+
+	for _, listPath := range ignoreOtherItemsInList {
+		identifierKey := ""
+		if listUniqueIdProperty != nil {
+			identifierKey = listUniqueIdProperty[listPath]
+		}
+		if identifierKey == "" {
+			identifierKey = "name" // default identifier key
+		}
+
+		listValue := getValueAtPath(body, listPath)
+		if listValue == nil {
+			continue
+		}
+
+		arr, ok := listValue.([]interface{})
+		if !ok {
+			continue
+		}
+
+		ids := make([]string, 0, len(arr))
+		for _, item := range arr {
+			id := identifierOfArrayItemByKey(item, identifierKey)
+			if id != "" {
+				ids = append(ids, id)
+			}
+		}
+
+		if len(ids) > 0 {
+			result[listPath] = ids
+		}
+	}
+
+	return result
+}
+
+// getValueAtPath retrieves a value from a nested map using a dot-separated path.
+func getValueAtPath(body map[string]interface{}, path string) interface{} {
+	parts := strings.Split(path, ".")
+	current := interface{}(body)
+
+	for _, part := range parts {
+		if part == "" {
+			continue
+		}
+		m, ok := current.(map[string]interface{})
+		if !ok {
+			return nil
+		}
+		current = m[part]
+		if current == nil {
+			return nil
+		}
+	}
+
+	return current
+}
+
+// HasRemovedManagedListItems checks if any previously managed list items exist in the
+// remote body but are not present in the config body. This is used to detect when a
+// user has intentionally removed items from their configuration.
+func HasRemovedManagedListItems(configBody, remoteBody map[string]interface{}, ignoreOtherItemsInList []string, listUniqueIdProperty map[string]string, previouslyManaged map[string][]string) bool {
+	if len(previouslyManaged) == 0 {
+		return false
+	}
+
+	for _, listPath := range ignoreOtherItemsInList {
+		prevItems := previouslyManaged[listPath]
+		if len(prevItems) == 0 {
+			continue
+		}
+
+		identifierKey := ""
+		if listUniqueIdProperty != nil {
+			identifierKey = listUniqueIdProperty[listPath]
+		}
+		if identifierKey == "" {
+			identifierKey = "name"
+		}
+
+		configIds := make(map[string]bool)
+		if configList := getValueAtPath(configBody, listPath); configList != nil {
+			if arr, ok := configList.([]interface{}); ok {
+				for _, item := range arr {
+					id := identifierOfArrayItemByKey(item, identifierKey)
+					if id != "" {
+						configIds[id] = true
+					}
+				}
+			}
+		}
+
+		remoteIds := make(map[string]bool)
+		if remoteList := getValueAtPath(remoteBody, listPath); remoteList != nil {
+			if arr, ok := remoteList.([]interface{}); ok {
+				for _, item := range arr {
+					id := identifierOfArrayItemByKey(item, identifierKey)
+					if id != "" {
+						remoteIds[id] = true
+					}
+				}
+			}
+		}
+
+		for _, prevId := range prevItems {
+			if remoteIds[prevId] && !configIds[prevId] {
+				return true
+			}
+		}
+	}
+
+	return false
+}
