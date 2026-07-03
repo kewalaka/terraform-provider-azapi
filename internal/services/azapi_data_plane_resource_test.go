@@ -140,6 +140,23 @@ func TestAccDataPlaneResource_searchServiceIndex(t *testing.T) {
 	})
 }
 
+func TestAccDataPlaneResource_searchIndexRead(t *testing.T) {
+	data := acceptance.BuildTestData(t, "azapi_data_plane_resource", "test")
+	r := DataPlaneResource{}
+
+	data.ResourceTest(t, r, []resource.TestStep{
+		{
+			Config: r.searchIndexRead(data),
+			Check: resource.ComposeTestCheckFunc(
+				check.That(data.ResourceName).ExistsInAzure(r),
+				resource.TestCheckResourceAttr("data.azapi_data_plane_resource.index", "name", "hotels-index"),
+				resource.TestCheckResourceAttr("data.azapi_data_plane_resource.index", "output.key_field", "hotelId"),
+				resource.TestCheckResourceAttr("data.azapi_data_plane_resource.index", "output.field_names.#", "3"),
+			),
+		},
+	})
+}
+
 func TestAccDataPlaneResource_searchServiceDataSource(t *testing.T) {
 	data := acceptance.BuildTestData(t, "azapi_data_plane_resource", "test")
 	r := DataPlaneResource{}
@@ -974,7 +991,7 @@ data "azapi_resource_list" "roleDefinitions" {
   type      = "Microsoft.Authorization/roleDefinitions@2022-04-01"
   parent_id = "/subscriptions/${data.azapi_client_config.current.subscription_id}"
   response_export_values = {
-    searchIndexDataContributorRoleId = "value[?properties.roleName == 'Search Index Data Contributor'].id | [0]"
+    searchServiceContributorRoleId = "value[?properties.roleName == 'Search Service Contributor'].id | [0]"
   }
 }
 
@@ -985,7 +1002,7 @@ resource "azapi_resource" "roleAssignment" {
   body = {
     properties = {
       principalId      = data.azapi_client_config.current.object_id
-      roleDefinitionId = data.azapi_resource_list.roleDefinitions.output.searchIndexDataContributorRoleId
+      roleDefinitionId = data.azapi_resource_list.roleDefinitions.output.searchServiceContributorRoleId
     }
   }
   lifecycle {
@@ -1032,6 +1049,105 @@ resource "azapi_data_plane_resource" "test" {
 `, data.LocationPrimary, data.RandomString)
 }
 
+func (r DataPlaneResource) searchIndexRead(data acceptance.TestData) string {
+	return fmt.Sprintf(`
+resource "azapi_resource" "resourceGroup" {
+  type     = "Microsoft.Resources/resourceGroups@2021-04-01"
+  name     = "acctest%[2]s"
+  location = "%[1]s"
+}
+
+resource "azapi_resource" "searchService" {
+  type      = "Microsoft.Search/searchServices@2023-11-01"
+  parent_id = azapi_resource.resourceGroup.id
+  name      = "acctest%[2]s"
+  location  = azapi_resource.resourceGroup.location
+  body = {
+    properties = {
+      replicaCount   = 1
+      partitionCount = 1
+      hostingMode    = "default"
+      authOptions = {
+        aadOrApiKey = {
+          aadAuthFailureMode = "http401WithBearerChallenge"
+        }
+      }
+    }
+    sku = {
+      name = "standard"
+    }
+  }
+}
+
+data "azapi_client_config" "current" {}
+
+data "azapi_resource_list" "roleDefinitions" {
+  type      = "Microsoft.Authorization/roleDefinitions@2022-04-01"
+  parent_id = "/subscriptions/${data.azapi_client_config.current.subscription_id}"
+  response_export_values = {
+    searchServiceContributorRoleId = "value[?properties.roleName == 'Search Service Contributor'].id | [0]"
+  }
+}
+
+resource "azapi_resource" "roleAssignment" {
+  type      = "Microsoft.Authorization/roleAssignments@2022-04-01"
+  parent_id = azapi_resource.searchService.id
+  name      = uuid()
+  body = {
+    properties = {
+      principalId      = data.azapi_client_config.current.object_id
+      roleDefinitionId = data.azapi_resource_list.roleDefinitions.output.searchServiceContributorRoleId
+    }
+  }
+  lifecycle {
+    ignore_changes = [name]
+  }
+}
+
+resource "azapi_data_plane_resource" "test" {
+  type      = "Microsoft.Search/searchServices/indexes@2024-07-01"
+  parent_id = "${azapi_resource.searchService.name}.search.windows.net"
+  name      = "hotels-index"
+  body = {
+    fields = [
+      {
+        name       = "hotelId"
+        type       = "Edm.String"
+        key        = true
+        searchable = false
+      },
+      {
+        name       = "hotelName"
+        type       = "Edm.String"
+        searchable = true
+      },
+      {
+        name       = "category"
+        type       = "Edm.String"
+        searchable = true
+        filterable = true
+      }
+    ]
+  }
+
+  depends_on = [
+    azapi_resource.roleAssignment,
+  ]
+}
+
+data "azapi_data_plane_resource" "index" {
+  type      = "Microsoft.Search/searchServices/indexes@2024-07-01"
+  parent_id = "${azapi_resource.searchService.name}.search.windows.net"
+  name      = azapi_data_plane_resource.test.name
+
+  response_export_values = {
+    field_names = "fields[].name"
+    key_field   = "fields[?key].name | [0]"
+  }
+}
+`, data.LocationPrimary, data.RandomString)
+}
+
 func (r DataPlaneResource) searchServiceDataSource(data acceptance.TestData) string {
 	return fmt.Sprintf(`
 resource "azapi_resource" "resourceGroup" {
@@ -1068,7 +1184,7 @@ data "azapi_resource_list" "roleDefinitions" {
   type      = "Microsoft.Authorization/roleDefinitions@2022-04-01"
   parent_id = "/subscriptions/${data.azapi_client_config.current.subscription_id}"
   response_export_values = {
-    searchIndexDataContributorRoleId = "value[?properties.roleName == 'Search Index Data Contributor'].id | [0]"
+    searchServiceContributorRoleId = "value[?properties.roleName == 'Search Service Contributor'].id | [0]"
   }
 }
 
@@ -1079,7 +1195,7 @@ resource "azapi_resource" "roleAssignment" {
   body = {
     properties = {
       principalId      = data.azapi_client_config.current.object_id
-      roleDefinitionId = data.azapi_resource_list.roleDefinitions.output.searchIndexDataContributorRoleId
+      roleDefinitionId = data.azapi_resource_list.roleDefinitions.output.searchServiceContributorRoleId
     }
   }
   lifecycle {
@@ -1177,7 +1293,7 @@ data "azapi_resource_list" "roleDefinitions" {
   type      = "Microsoft.Authorization/roleDefinitions@2022-04-01"
   parent_id = "/subscriptions/${data.azapi_client_config.current.subscription_id}"
   response_export_values = {
-    searchIndexDataContributorRoleId = "value[?properties.roleName == 'Search Index Data Contributor'].id | [0]"
+    searchServiceContributorRoleId = "value[?properties.roleName == 'Search Service Contributor'].id | [0]"
   }
 }
 
@@ -1188,7 +1304,7 @@ resource "azapi_resource" "roleAssignment" {
   body = {
     properties = {
       principalId      = data.azapi_client_config.current.object_id
-      roleDefinitionId = data.azapi_resource_list.roleDefinitions.output.searchIndexDataContributorRoleId
+      roleDefinitionId = data.azapi_resource_list.roleDefinitions.output.searchServiceContributorRoleId
     }
   }
   lifecycle {
@@ -1321,7 +1437,7 @@ data "azapi_resource_list" "roleDefinitions" {
   type      = "Microsoft.Authorization/roleDefinitions@2022-04-01"
   parent_id = "/subscriptions/${data.azapi_client_config.current.subscription_id}"
   response_export_values = {
-    searchIndexDataContributorRoleId = "value[?properties.roleName == 'Search Index Data Contributor'].id | [0]"
+    searchServiceContributorRoleId = "value[?properties.roleName == 'Search Service Contributor'].id | [0]"
   }
 }
 
@@ -1332,7 +1448,7 @@ resource "azapi_resource" "roleAssignment" {
   body = {
     properties = {
       principalId      = data.azapi_client_config.current.object_id
-      roleDefinitionId = data.azapi_resource_list.roleDefinitions.output.searchIndexDataContributorRoleId
+      roleDefinitionId = data.azapi_resource_list.roleDefinitions.output.searchServiceContributorRoleId
     }
   }
   lifecycle {
