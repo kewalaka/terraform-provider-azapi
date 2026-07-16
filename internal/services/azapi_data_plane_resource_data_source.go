@@ -134,7 +134,7 @@ func (r *DataPlaneResourceDataSource) ValidateConfig(ctx context.Context, reques
 		Type:        config.Type,
 		Identifiers: config.Identifiers,
 	}
-	if err := validateDataPlaneResourceAddress(resourceConfig); err != nil {
+	if err := validateDataPlaneResourceIdentifier(resourceConfig); err != nil {
 		response.Diagnostics.AddError("Invalid configuration", err.Error())
 	}
 }

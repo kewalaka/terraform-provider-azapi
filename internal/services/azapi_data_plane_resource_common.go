@@ -27,7 +27,7 @@ func validateDataPlaneResourceWritable(resourceType string) error {
 	return nil
 }
 
-func validateDataPlaneResourceAddress(config *DataPlaneResourceModel) error {
+func validateDataPlaneResourceIdentifier(config *DataPlaneResourceModel) error {
 	if config == nil || config.Type.IsNull() || config.Type.IsUnknown() {
 		return nil
 	}

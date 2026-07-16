@@ -1418,6 +1418,9 @@ resource "azapi_data_plane_resource" "entity" {
   ]
 }
 
+# NOTE: table entity create/update operations use OData MERGE semantics, so omitted
+# properties are preserved on the existing entity unless explicitly set or removed.
+
 data "azapi_data_plane_resource" "entity" {
   type      = "Microsoft.Storage/storageAccounts/tableServices/tables/entities@2026-04-06"
   parent_id = azapi_data_plane_resource.entity.parent_id
@@ -1467,4 +1470,3 @@ import {
   id = "exampleappconf.azconfig.io/kv/mykey|Microsoft.AppConfiguration/configurationStores/keyValues@1.0"
 }
 ```
-

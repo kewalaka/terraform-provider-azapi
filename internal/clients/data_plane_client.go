@@ -98,10 +98,6 @@ func (client *DataPlaneClient) CreateOrUpdateThenPoll(ctx context.Context, id pa
 		reqQP.Set(key, value)
 	}
 	req.Raw().URL.RawQuery = reqQP.Encode()
-	req.Raw().Header.Set("Accept", "application/json")
-	for key, value := range options.Headers {
-		req.Raw().Header.Set(key, value)
-	}
 	err = runtime.MarshalAsJSON(req, body)
 	if err != nil {
 		return nil, err
@@ -165,10 +161,6 @@ func (client *DataPlaneClient) Get(ctx context.Context, id parse.DataPlaneResour
 		reqQP.Set(key, value)
 	}
 	req.Raw().URL.RawQuery = reqQP.Encode()
-	req.Raw().Header.Set("Accept", "application/json")
-	for key, value := range options.Headers {
-		req.Raw().Header.Set(key, value)
-	}
 
 	// send request
 	pipeline, err := client.cachedPipeline(urlPath)
@@ -219,10 +211,6 @@ func (client *DataPlaneClient) DeleteThenPoll(ctx context.Context, id parse.Data
 		reqQP.Set(key, value)
 	}
 	req.Raw().URL.RawQuery = reqQP.Encode()
-	req.Raw().Header.Set("Accept", "application/json")
-	for key, value := range options.Headers {
-		req.Raw().Header.Set(key, value)
-	}
 
 	// send request
 	pipeline, err := client.cachedPipeline(urlPath)
@@ -285,10 +273,6 @@ func (client *DataPlaneClient) Action(ctx context.Context, resourceID string, ac
 		reqQP.Set(key, value)
 	}
 	req.Raw().URL.RawQuery = reqQP.Encode()
-	req.Raw().Header.Set("Accept", "application/json")
-	for key, value := range options.Headers {
-		req.Raw().Header.Set(key, value)
-	}
 	if method != "GET" && body != nil {
 		err = runtime.MarshalAsJSON(req, body)
 	}
@@ -339,6 +323,8 @@ func (client *DataPlaneClient) Action(ctx context.Context, resourceID string, ac
 
 func applyAPIVersion(req *policy.Request, apiVersion string, options RequestOptions) {
 	reqQP := req.Raw().URL.Query()
+	// Most data plane endpoints version via query parameter, but some (for example
+	// Azure Table Storage OData URLs) require a version header and reject api-version.
 	if !options.DisableAPIVersionQueryParameter {
 		reqQP.Set("api-version", apiVersion)
 		req.Raw().URL.RawQuery = reqQP.Encode()

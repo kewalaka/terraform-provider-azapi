@@ -329,7 +329,7 @@ func (r *DataPlaneResource) ModifyPlan(ctx context.Context, request resource.Mod
 		return
 	}
 
-	if err := validateDataPlaneResourceAddress(config); err != nil {
+	if err := validateDataPlaneResourceIdentifier(config); err != nil {
 		response.Diagnostics.AddError("Invalid configuration", err.Error())
 		return
 	}
@@ -437,7 +437,7 @@ func (r *DataPlaneResource) CreateUpdate(ctx context.Context, requestConfig tfsd
 		return
 	}
 
-	if err := validateDataPlaneResourceAddress(config); err != nil {
+	if err := validateDataPlaneResourceIdentifier(config); err != nil {
 		diagnostics.AddError("Invalid configuration", err.Error())
 		return
 	}

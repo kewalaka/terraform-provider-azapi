@@ -8,14 +8,14 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func TestValidateDataPlaneResourceAddress(t *testing.T) {
+func TestValidateDataPlaneResourceIdentifier(t *testing.T) {
 	t.Run("agent requires name", func(t *testing.T) {
 		config := &DataPlaneResourceModel{
 			Type: types.StringValue("Microsoft.Foundry/agents@v1"),
 			Name: types.StringNull(),
 		}
 
-		err := validateDataPlaneResourceAddress(config)
+		err := validateDataPlaneResourceIdentifier(config)
 		if err == nil {
 			t.Fatalf("expected validation error")
 		}
@@ -30,7 +30,7 @@ func TestValidateDataPlaneResourceAddress(t *testing.T) {
 			Name: types.StringValue("terraform-agent"),
 		}
 
-		if err := validateDataPlaneResourceAddress(config); err != nil {
+		if err := validateDataPlaneResourceIdentifier(config); err != nil {
 			t.Fatalf("expected nil error, got: %v", err)
 		}
 	})
@@ -41,7 +41,7 @@ func TestValidateDataPlaneResourceAddress(t *testing.T) {
 			Name: types.StringNull(),
 		}
 
-		err := validateDataPlaneResourceAddress(config)
+		err := validateDataPlaneResourceIdentifier(config)
 		if err == nil {
 			t.Fatalf("expected validation error")
 		}
@@ -56,7 +56,7 @@ func TestValidateDataPlaneResourceAddress(t *testing.T) {
 			Name: types.StringValue("secret-name"),
 		}
 
-		if err := validateDataPlaneResourceAddress(config); err != nil {
+		if err := validateDataPlaneResourceIdentifier(config); err != nil {
 			t.Fatalf("expected nil error, got: %v", err)
 		}
 	})
@@ -71,7 +71,7 @@ func TestValidateDataPlaneResourceAddress(t *testing.T) {
 			}),
 		}
 
-		if err := validateDataPlaneResourceAddress(config); err != nil {
+		if err := validateDataPlaneResourceIdentifier(config); err != nil {
 			t.Fatalf("expected nil error, got: %v", err)
 		}
 	})
@@ -83,7 +83,7 @@ func TestValidateDataPlaneResourceAddress(t *testing.T) {
 			Identifiers: types.MapNull(types.StringType),
 		}
 
-		err := validateDataPlaneResourceAddress(config)
+		err := validateDataPlaneResourceIdentifier(config)
 		if err == nil {
 			t.Fatalf("expected validation error")
 		}
@@ -105,7 +105,7 @@ func TestValidateDataPlaneResourceAddress(t *testing.T) {
 			}),
 		}
 
-		if err := validateDataPlaneResourceAddress(config); err != nil {
+		if err := validateDataPlaneResourceIdentifier(config); err != nil {
 			t.Fatalf("expected nil (deferred) error for unknown identifier values, got: %v", err)
 		}
 	})
@@ -124,7 +124,7 @@ func TestValidateDataPlaneResourceAddress(t *testing.T) {
 			}),
 		}
 
-		if err := validateDataPlaneResourceAddress(config); err != nil {
+		if err := validateDataPlaneResourceIdentifier(config); err != nil {
 			t.Fatalf("expected nil (deferred) error for mixed known/unknown identifier values, got: %v", err)
 		}
 	})
@@ -135,7 +135,7 @@ func TestValidateDataPlaneResourceAddress(t *testing.T) {
 			Name: types.StringNull(),
 		}
 
-		if err := validateDataPlaneResourceAddress(config); err != nil {
+		if err := validateDataPlaneResourceIdentifier(config); err != nil {
 			t.Fatalf("expected nil error for singleton resource type, got: %v", err)
 		}
 	})

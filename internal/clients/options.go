@@ -30,7 +30,11 @@ type RequestOptions struct {
 	QueryParameters                 map[string]string
 	RetryOptions                    *policy.RetryOptions
 	LastRetryError                  *LastRetryError
+	// DisableAPIVersionQueryParameter is used for data plane endpoints that don't accept
+	// the standard ?api-version query parameter (for example Azure Table Storage OData URLs).
 	DisableAPIVersionQueryParameter bool
+	// APIVersionHeaderName sets the API version in a request header for services that
+	// version by header instead of query parameter (for example x-ms-version).
 	APIVersionHeaderName            string
 }
 
