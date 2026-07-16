@@ -16,7 +16,7 @@ type DataPlaneResourceId struct {
 	ParentId          string
 	// Most data plane resources only require Name; Identifiers supports resource types with
 	// additional path identifiers (for example Storage Table entities needing partitionKey/rowKey).
-	Identifiers       map[string]string
+	Identifiers map[string]string
 }
 
 func NewDataPlaneResourceId(name, parentId, resourceType string) (DataPlaneResourceId, error) {
