@@ -45,6 +45,7 @@ type DataPlaneResourceEphemeral struct {
 
 var _ ephemeral.EphemeralResource = &DataPlaneResourceEphemeral{}
 var _ ephemeral.EphemeralResourceWithConfigure = &DataPlaneResourceEphemeral{}
+var _ ephemeral.EphemeralResourceWithValidateConfig = &DataPlaneResourceEphemeral{}
 var _ tffwdocs.EphemeralResourceWithRenderOption = &DataPlaneResourceEphemeral{}
 
 func (r *DataPlaneResourceEphemeral) Metadata(ctx context.Context, request ephemeral.MetadataRequest, response *ephemeral.MetadataResponse) {
@@ -54,6 +55,26 @@ func (r *DataPlaneResourceEphemeral) Metadata(ctx context.Context, request ephem
 func (r *DataPlaneResourceEphemeral) Configure(ctx context.Context, request ephemeral.ConfigureRequest, response *ephemeral.ConfigureResponse) {
 	if v, ok := request.ProviderData.(*clients.Client); ok {
 		r.ProviderData = v
+	}
+}
+
+func (r *DataPlaneResourceEphemeral) ValidateConfig(ctx context.Context, request ephemeral.ValidateConfigRequest, response *ephemeral.ValidateConfigResponse) {
+	var config *DataPlaneResourceEphemeralModel
+	if response.Diagnostics.Append(request.Config.Get(ctx, &config)...); response.Diagnostics.HasError() {
+		return
+	}
+	if config == nil {
+		return
+	}
+
+	resourceConfig := &DataPlaneResourceModel{
+		Name:        config.Name,
+		ParentID:    config.ParentID,
+		Type:        config.Type,
+		Identifiers: config.Identifiers,
+	}
+	if err := validateDataPlaneResourceIdentifier(resourceConfig); err != nil {
+		response.Diagnostics.AddError("Invalid configuration", err.Error())
 	}
 }
 
