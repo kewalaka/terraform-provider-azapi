@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Azure/terraform-provider-azapi/internal/clients"
 	"github.com/Azure/terraform-provider-azapi/internal/services/parse"
 )
 
@@ -58,22 +57,6 @@ func TestBuildStorageTableEntityBodyRejectsMissingKeys(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "must end with (PartitionKey=") {
 		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
-func TestStorageTableEntityRequestOptionsSetTableHeaders(t *testing.T) {
-	options := storageTableEntityRequestOptions(clients.RequestOptions{}, "2026-04-06")
-	if got := options.Headers["Accept"]; got != "application/json;odata=nometadata" {
-		t.Fatalf("expected OData accept header, got %q", got)
-	}
-	if got := options.Headers["DataServiceVersion"]; got != "3.0;NetFx" {
-		t.Fatalf("expected DataServiceVersion header, got %q", got)
-	}
-	if got := options.Headers["MaxDataServiceVersion"]; got != "3.0;NetFx" {
-		t.Fatalf("expected MaxDataServiceVersion header, got %q", got)
-	}
-	if got := options.Headers["x-ms-version"]; got != "2026-04-06" {
-		t.Fatalf("expected x-ms-version header to be set to the API version, got %q", got)
 	}
 }
 

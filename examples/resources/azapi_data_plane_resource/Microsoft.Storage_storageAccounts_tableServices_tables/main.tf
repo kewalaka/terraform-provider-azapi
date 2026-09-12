@@ -19,6 +19,12 @@ variable "location" {
   default = "westeurope"
 }
 
+locals {
+  storage_table_headers = {
+    "x-ms-version" = "2026-04-06"
+  }
+}
+
 data "azapi_client_config" "current" {}
 
 resource "azapi_resource" "resourceGroup" {
@@ -67,9 +73,12 @@ resource "azapi_resource" "roleAssignment" {
 }
 
 resource "azapi_data_plane_resource" "example" {
-  type      = "Microsoft.Storage/storageAccounts/tableServices/tables@2026-04-06"
-  parent_id = "${azapi_resource.storageAccount.name}.table.core.windows.net"
-  name      = var.resource_name
+  type           = "Microsoft.Storage/storageAccounts/tableServices/tables@2026-04-06"
+  parent_id      = "${azapi_resource.storageAccount.name}.table.core.windows.net"
+  name           = var.resource_name
+  create_headers = local.storage_table_headers
+  read_headers   = local.storage_table_headers
+  delete_headers = local.storage_table_headers
   body = {
     TableName = var.resource_name
   }

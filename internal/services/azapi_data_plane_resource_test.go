@@ -1651,6 +1651,12 @@ resource "azapi_data_plane_resource" "test" {
 
 func (r DataPlaneResource) storageTable(data acceptance.TestData) string {
 	return fmt.Sprintf(`
+locals {
+  storage_table_headers = {
+    "x-ms-version" = "2026-04-06"
+  }
+}
+
 data "azapi_client_config" "current" {}
 
 resource "azapi_resource" "resourceGroup" {
@@ -1699,9 +1705,12 @@ resource "azapi_resource" "roleAssignment" {
 }
 
 resource "azapi_data_plane_resource" "test" {
-  type      = "Microsoft.Storage/storageAccounts/tableServices/tables@2026-04-06"
-  parent_id = "${azapi_resource.storageAccount.name}.table.core.windows.net"
-  name      = "acctest%[2]s"
+  type           = "Microsoft.Storage/storageAccounts/tableServices/tables@2026-04-06"
+  parent_id      = "${azapi_resource.storageAccount.name}.table.core.windows.net"
+  name           = "acctest%[2]s"
+  create_headers = local.storage_table_headers
+  read_headers   = local.storage_table_headers
+  delete_headers = local.storage_table_headers
   body = {
     TableName = "acctest%[2]s"
   }
@@ -1721,6 +1730,18 @@ resource "azapi_data_plane_resource" "test" {
 
 func (r DataPlaneResource) storageTableEntity(data acceptance.TestData, outputValue string) string {
 	return fmt.Sprintf(`
+locals {
+  storage_table_headers = {
+    "x-ms-version" = "2026-04-06"
+  }
+  storage_table_entity_headers = {
+    "x-ms-version"        = "2026-04-06"
+    Accept                = "application/json;odata=nometadata"
+    DataServiceVersion    = "3.0;NetFx"
+    MaxDataServiceVersion = "3.0;NetFx"
+  }
+}
+
 data "azapi_client_config" "current" {}
 
 resource "azapi_resource" "resourceGroup" {
@@ -1746,12 +1767,25 @@ resource "azapi_resource" "storageAccount" {
 }
 
 resource "azapi_data_plane_resource" "table" {
-  type      = "Microsoft.Storage/storageAccounts/tableServices/tables@2026-04-06"
-  parent_id = "${azapi_resource.storageAccount.name}.table.core.windows.net"
-  name      = "acctest%[2]s"
+  type           = "Microsoft.Storage/storageAccounts/tableServices/tables@2026-04-06"
+  parent_id      = "${azapi_resource.storageAccount.name}.table.core.windows.net"
+  name           = "acctest%[2]s"
+  create_headers = local.storage_table_headers
+  read_headers   = local.storage_table_headers
+  delete_headers = local.storage_table_headers
   body = {
     TableName = "acctest%[2]s"
   }
+
+  retry = {
+    error_message_regex  = ["AuthorizationPermissionMismatch", "AuthorizationFailure", "Forbidden", "Unauthorized", "authorization"]
+    interval_seconds     = 20
+    max_interval_seconds = 120
+  }
+
+  depends_on = [
+    azapi_resource.roleAssignment,
+  ]
 }
 
 data "azapi_resource_list" "roleDefinitions" {
@@ -1778,8 +1812,14 @@ resource "azapi_resource" "roleAssignment" {
 }
 
 resource "azapi_data_plane_resource" "test" {
-  type      = "Microsoft.Storage/storageAccounts/tableServices/tables/entities@2026-04-06"
-  parent_id = "${azapi_resource.storageAccount.name}.table.core.windows.net/${azapi_data_plane_resource.table.name}(PartitionKey='example',RowKey='state')"
+  type           = "Microsoft.Storage/storageAccounts/tableServices/tables/entities@2026-04-06"
+  parent_id      = "${azapi_resource.storageAccount.name}.table.core.windows.net/${azapi_data_plane_resource.table.name}(PartitionKey='example',RowKey='state')"
+  create_headers = local.storage_table_entity_headers
+  read_headers   = local.storage_table_entity_headers
+  update_headers = local.storage_table_entity_headers
+  delete_headers = merge(local.storage_table_entity_headers, {
+    "If-Match" = "*"
+  })
   body = {
     outputs = "%[3]s"
   }
@@ -1792,6 +1832,7 @@ resource "azapi_data_plane_resource" "test" {
 data "azapi_data_plane_resource" "read" {
   type      = "Microsoft.Storage/storageAccounts/tableServices/tables/entities@2026-04-06"
   parent_id = azapi_data_plane_resource.test.parent_id
+  headers   = local.storage_table_entity_headers
 }
 `, data.LocationPrimary, data.RandomString, outputValue)
 }

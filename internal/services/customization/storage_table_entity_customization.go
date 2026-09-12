@@ -22,14 +22,14 @@ func (c StorageTableEntityCustomization) CreateFunc() CreateFunc {
 		if err != nil {
 			return err
 		}
-		_, err = client.DataPlaneClient.Action(ctx, id.AzureResourceId, "", id.ApiVersion, httpMethodMerge, payload, storageTableEntityRequestOptions(options, id.ApiVersion))
+		_, err = client.DataPlaneClient.Action(ctx, id.AzureResourceId, "", id.ApiVersion, httpMethodMerge, payload, options)
 		return err
 	}
 }
 
 func (c StorageTableEntityCustomization) ReadFunc() ReadFunc {
 	return func(ctx context.Context, client clients.Client, id parse.DataPlaneResourceId, options clients.RequestOptions) (interface{}, error) {
-		responseBody, err := client.DataPlaneClient.Get(ctx, id, storageTableEntityRequestOptions(options, id.ApiVersion))
+		responseBody, err := client.DataPlaneClient.Get(ctx, id, options)
 		if err != nil {
 			return nil, err
 		}
@@ -43,21 +43,14 @@ func (c StorageTableEntityCustomization) UpdateFunc() UpdateFunc {
 		if err != nil {
 			return err
 		}
-		_, err = client.DataPlaneClient.Action(ctx, id.AzureResourceId, "", id.ApiVersion, httpMethodMerge, payload, storageTableEntityRequestOptions(options, id.ApiVersion))
+		_, err = client.DataPlaneClient.Action(ctx, id.AzureResourceId, "", id.ApiVersion, httpMethodMerge, payload, options)
 		return err
 	}
 }
 
 func (c StorageTableEntityCustomization) DeleteFunc() DeleteFunc {
 	return func(ctx context.Context, client clients.Client, id parse.DataPlaneResourceId, options clients.RequestOptions) error {
-		requestOptions := storageTableEntityRequestOptions(options, id.ApiVersion)
-		if requestOptions.Headers == nil {
-			requestOptions.Headers = map[string]string{}
-		}
-		if _, ok := requestOptions.Headers["If-Match"]; !ok {
-			requestOptions.Headers["If-Match"] = "*"
-		}
-		_, err := client.DataPlaneClient.DeleteThenPoll(ctx, id, requestOptions)
+		_, err := client.DataPlaneClient.DeleteThenPoll(ctx, id, options)
 		return err
 	}
 }
@@ -74,7 +67,7 @@ func (c StorageTableEntitiesCustomization) DeleteFunc() DeleteFunc { return nil 
 
 func (c StorageTableEntitiesCustomization) ReadFunc() ReadFunc {
 	return func(ctx context.Context, client clients.Client, id parse.DataPlaneResourceId, options clients.RequestOptions) (interface{}, error) {
-		return client.DataPlaneClient.Get(ctx, id, storageTableEntityRequestOptions(options, id.ApiVersion))
+		return client.DataPlaneClient.Get(ctx, id, options)
 	}
 }
 
@@ -124,23 +117,6 @@ func buildStorageTableEntityBody(id parse.DataPlaneResourceId, body interface{})
 	payload["PartitionKey"] = partitionKey
 	payload["RowKey"] = rowKey
 	return payload, nil
-}
-
-func storageTableEntityRequestOptions(options clients.RequestOptions, apiVersion string) clients.RequestOptions {
-	cloned := storageTableRequestOptions(options, apiVersion)
-	if cloned.Headers == nil {
-		cloned.Headers = map[string]string{}
-	}
-	if _, ok := cloned.Headers["Accept"]; !ok {
-		cloned.Headers["Accept"] = "application/json;odata=nometadata"
-	}
-	if _, ok := cloned.Headers["DataServiceVersion"]; !ok {
-		cloned.Headers["DataServiceVersion"] = "3.0;NetFx"
-	}
-	if _, ok := cloned.Headers["MaxDataServiceVersion"]; !ok {
-		cloned.Headers["MaxDataServiceVersion"] = "3.0;NetFx"
-	}
-	return cloned
 }
 
 func flattenStorageTableEntity(responseBody interface{}) (interface{}, error) {

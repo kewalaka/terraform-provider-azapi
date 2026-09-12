@@ -19,6 +19,18 @@ variable "location" {
   default = "westeurope"
 }
 
+locals {
+  storage_table_headers = {
+    "x-ms-version" = "2026-04-06"
+  }
+  storage_table_entity_headers = {
+    "x-ms-version"        = "2026-04-06"
+    Accept                = "application/json;odata=nometadata"
+    DataServiceVersion    = "3.0;NetFx"
+    MaxDataServiceVersion = "3.0;NetFx"
+  }
+}
+
 data "azapi_client_config" "current" {}
 
 resource "azapi_resource" "resourceGroup" {
@@ -44,12 +56,25 @@ resource "azapi_resource" "storageAccount" {
 }
 
 resource "azapi_data_plane_resource" "table" {
-  type      = "Microsoft.Storage/storageAccounts/tableServices/tables@2026-04-06"
-  parent_id = "${azapi_resource.storageAccount.name}.table.core.windows.net"
-  name      = var.resource_name
+  type           = "Microsoft.Storage/storageAccounts/tableServices/tables@2026-04-06"
+  parent_id      = "${azapi_resource.storageAccount.name}.table.core.windows.net"
+  name           = var.resource_name
+  create_headers = local.storage_table_headers
+  read_headers   = local.storage_table_headers
+  delete_headers = local.storage_table_headers
   body = {
     TableName = var.resource_name
   }
+
+  retry = {
+    error_message_regex  = ["AuthorizationPermissionMismatch", "AuthorizationFailure", "Forbidden", "Unauthorized", "authorization"]
+    interval_seconds     = 20
+    max_interval_seconds = 120
+  }
+
+  depends_on = [
+    azapi_resource.roleAssignment,
+  ]
 }
 
 data "azapi_resource_list" "roleDefinitions" {
@@ -76,8 +101,14 @@ resource "azapi_resource" "roleAssignment" {
 }
 
 resource "azapi_data_plane_resource" "entity" {
-  type      = "Microsoft.Storage/storageAccounts/tableServices/tables/entities@2026-04-06"
-  parent_id = "${azapi_resource.storageAccount.name}.table.core.windows.net/${azapi_data_plane_resource.table.name}(PartitionKey='example',RowKey='state')"
+  type           = "Microsoft.Storage/storageAccounts/tableServices/tables/entities@2026-04-06"
+  parent_id      = "${azapi_resource.storageAccount.name}.table.core.windows.net/${azapi_data_plane_resource.table.name}(PartitionKey='example',RowKey='state')"
+  create_headers = local.storage_table_entity_headers
+  read_headers   = local.storage_table_entity_headers
+  update_headers = local.storage_table_entity_headers
+  delete_headers = merge(local.storage_table_entity_headers, {
+    "If-Match" = "*"
+  })
   body = {
     outputs = jsonencode({
       status = "ok"
@@ -92,6 +123,7 @@ resource "azapi_data_plane_resource" "entity" {
 data "azapi_data_plane_resource" "entity" {
   type      = "Microsoft.Storage/storageAccounts/tableServices/tables/entities@2026-04-06"
   parent_id = azapi_data_plane_resource.entity.parent_id
+  headers   = local.storage_table_entity_headers
 
   depends_on = [
     azapi_data_plane_resource.entity,
@@ -101,6 +133,7 @@ data "azapi_data_plane_resource" "entity" {
 data "azapi_data_plane_resource" "entities" {
   type      = "Microsoft.Storage/storageAccounts/tableServices/tables/entitiesCollection@2026-04-06"
   parent_id = "${azapi_resource.storageAccount.name}.table.core.windows.net/${azapi_data_plane_resource.table.name}"
+  headers   = local.storage_table_entity_headers
   query_parameters = {
     "$filter" = ["PartitionKey eq 'example'"]
   }

@@ -22,14 +22,14 @@ func (c StorageTableCustomization) CreateFunc() CreateFunc {
 		if err != nil {
 			return err
 		}
-		_, err = client.DataPlaneClient.Action(ctx, storageTableCollectionID(id), "", id.ApiVersion, http.MethodPost, payload, storageTableRequestOptions(options, id.ApiVersion))
+		_, err = client.DataPlaneClient.Action(ctx, storageTableCollectionID(id), "", id.ApiVersion, http.MethodPost, payload, options)
 		return err
 	}
 }
 
 func (c StorageTableCustomization) ReadFunc() ReadFunc {
 	return func(ctx context.Context, client clients.Client, id parse.DataPlaneResourceId, options clients.RequestOptions) (interface{}, error) {
-		return client.DataPlaneClient.Get(ctx, id, storageTableRequestOptions(options, id.ApiVersion))
+		return client.DataPlaneClient.Get(ctx, id, options)
 	}
 }
 
@@ -41,7 +41,7 @@ func (c StorageTableCustomization) UpdateFunc() UpdateFunc {
 
 func (c StorageTableCustomization) DeleteFunc() DeleteFunc {
 	return func(ctx context.Context, client clients.Client, id parse.DataPlaneResourceId, options clients.RequestOptions) error {
-		_, err := client.DataPlaneClient.DeleteThenPoll(ctx, id, storageTableRequestOptions(options, id.ApiVersion))
+		_, err := client.DataPlaneClient.DeleteThenPoll(ctx, id, options)
 		return err
 	}
 }
@@ -74,23 +74,6 @@ func buildStorageTableCreateBody(id parse.DataPlaneResourceId, body interface{})
 
 	payload["TableName"] = id.Name
 	return payload, nil
-}
-
-func storageTableRequestOptions(options clients.RequestOptions, apiVersion string) clients.RequestOptions {
-	cloned := options
-
-	headers := make(map[string]string, len(options.Headers)+1)
-	for key, value := range options.Headers {
-		headers[key] = value
-	}
-	// Azure Storage requires the service API version in the x-ms-version header when
-	// authenticating with Microsoft Entra ID (OAuth). The api-version query parameter
-	// set by the client is accepted as well and left untouched.
-	if _, ok := headers["x-ms-version"]; !ok {
-		headers["x-ms-version"] = apiVersion
-	}
-	cloned.Headers = headers
-	return cloned
 }
 
 var _ DataPlaneResource = &StorageTableCustomization{}

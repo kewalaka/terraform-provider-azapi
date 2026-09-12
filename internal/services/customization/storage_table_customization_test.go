@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Azure/terraform-provider-azapi/internal/clients"
 	"github.com/Azure/terraform-provider-azapi/internal/services/parse"
 )
 
@@ -37,21 +36,6 @@ func TestBuildStorageTableCreateBodyRejectsMismatchedTableName(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), `must match name "acctesttable"`) {
 		t.Fatalf("expected name mismatch error, got: %v", err)
-	}
-}
-
-func TestStorageTableRequestOptionsUseVersionHeader(t *testing.T) {
-	options := storageTableRequestOptions(clients.RequestOptions{
-		Headers: map[string]string{
-			"Accept": "application/json",
-		},
-	}, "2026-04-06")
-
-	if got := options.Headers["x-ms-version"]; got != "2026-04-06" {
-		t.Fatalf("expected x-ms-version header to be set to the API version, got %q", got)
-	}
-	if got := options.Headers["Accept"]; got != "application/json" {
-		t.Fatalf("expected existing header to be preserved, got %q", got)
 	}
 }
 
