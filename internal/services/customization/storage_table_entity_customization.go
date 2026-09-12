@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"strings"
 
 	"github.com/Azure/terraform-provider-azapi/internal/clients"
 	"github.com/Azure/terraform-provider-azapi/internal/services/parse"
@@ -29,11 +28,7 @@ func (c StorageTableEntityCustomization) CreateFunc() CreateFunc {
 
 func (c StorageTableEntityCustomization) ReadFunc() ReadFunc {
 	return func(ctx context.Context, client clients.Client, id parse.DataPlaneResourceId, options clients.RequestOptions) (interface{}, error) {
-		responseBody, err := client.DataPlaneClient.Get(ctx, id, options)
-		if err != nil {
-			return nil, err
-		}
-		return flattenStorageTableEntity(responseBody)
+		return client.DataPlaneClient.Get(ctx, id, options)
 	}
 }
 
@@ -117,28 +112,6 @@ func buildStorageTableEntityBody(id parse.DataPlaneResourceId, body interface{})
 	payload["PartitionKey"] = partitionKey
 	payload["RowKey"] = rowKey
 	return payload, nil
-}
-
-func flattenStorageTableEntity(responseBody interface{}) (interface{}, error) {
-	entity, ok := responseBody.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("expected Azure Table entity response to be an object")
-	}
-	// Strip fields that are already captured in `parent_id` (PartitionKey, RowKey) or are
-	// OData protocol metadata (Timestamp, odata.*).  Leaving them in the body would create
-	// a permanent diff between the user-authored body and the read-back state, because the
-	// user does not include these fields in their HCL body attribute.
-	flattened := make(map[string]interface{}, len(entity))
-	for key, value := range entity {
-		if key == "PartitionKey" || key == "RowKey" || key == "Timestamp" {
-			continue
-		}
-		if strings.HasPrefix(key, "odata.") {
-			continue
-		}
-		flattened[key] = value
-	}
-	return flattened, nil
 }
 
 const httpMethodMerge = "MERGE"
