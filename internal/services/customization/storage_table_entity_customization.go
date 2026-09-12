@@ -3,6 +3,7 @@ package customization
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"regexp"
 
 	"github.com/Azure/terraform-provider-azapi/internal/clients"
@@ -21,7 +22,7 @@ func (c StorageTableEntityCustomization) CreateFunc() CreateFunc {
 		if err != nil {
 			return err
 		}
-		_, err = client.DataPlaneClient.Action(ctx, id.AzureResourceId, "", id.ApiVersion, httpMethodMerge, payload, options)
+		_, err = client.DataPlaneClient.Action(ctx, id.AzureResourceId, "", id.ApiVersion, http.MethodPut, payload, options)
 		return err
 	}
 }
@@ -38,7 +39,7 @@ func (c StorageTableEntityCustomization) UpdateFunc() UpdateFunc {
 		if err != nil {
 			return err
 		}
-		_, err = client.DataPlaneClient.Action(ctx, id.AzureResourceId, "", id.ApiVersion, httpMethodMerge, payload, options)
+		_, err = client.DataPlaneClient.Action(ctx, id.AzureResourceId, "", id.ApiVersion, http.MethodPut, payload, options)
 		return err
 	}
 }
@@ -113,8 +114,6 @@ func buildStorageTableEntityBody(id parse.DataPlaneResourceId, body interface{})
 	payload["RowKey"] = rowKey
 	return payload, nil
 }
-
-const httpMethodMerge = "MERGE"
 
 var _ DataPlaneResource = &StorageTableEntityCustomization{}
 var _ DataPlaneResource = &StorageTableEntitiesCustomization{}

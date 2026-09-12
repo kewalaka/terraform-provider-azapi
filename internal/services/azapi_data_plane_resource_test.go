@@ -254,16 +254,29 @@ func TestAccDataPlaneResource_storageTableEntity(t *testing.T) {
 
 	data.ResourceTest(t, r, []resource.TestStep{
 		{
-			Config: r.storageTableEntity(data, "value1"),
+			Config: r.storageTableEntity(data, "value1", true),
 			Check: resource.ComposeTestCheckFunc(
 				check.That(data.ResourceName).ExistsInAzure(r),
+				check.That(data.ResourceName).Key("output.outputs").HasValue("value1"),
+				check.That(data.ResourceName).Key("output.removed_property").HasValue("remove-me"),
+				check.That("data.azapi_data_plane_resource.read").Key("output.outputs").HasValue("value1"),
+				check.That("data.azapi_data_plane_resource.read").Key("output.removed_property").HasValue("remove-me"),
 			),
 		},
 		{
-			Config: r.storageTableEntity(data, "value2"),
+			Config: r.storageTableEntity(data, "value2", false),
 			Check: resource.ComposeTestCheckFunc(
 				check.That(data.ResourceName).ExistsInAzure(r),
+				check.That(data.ResourceName).Key("output.outputs").HasValue("value2"),
+				check.That(data.ResourceName).Key("output.removed_property").DoesNotExist(),
+				check.That("data.azapi_data_plane_resource.read").Key("output.outputs").HasValue("value2"),
+				check.That("data.azapi_data_plane_resource.read").Key("output.removed_property").DoesNotExist(),
 			),
+		},
+		{
+			Config:             r.storageTableEntity(data, "value2", false),
+			PlanOnly:           true,
+			ExpectNonEmptyPlan: false,
 		},
 	})
 }
@@ -1728,7 +1741,11 @@ resource "azapi_data_plane_resource" "test" {
 `, data.LocationPrimary, data.RandomString)
 }
 
-func (r DataPlaneResource) storageTableEntity(data acceptance.TestData, outputValue string) string {
+func (r DataPlaneResource) storageTableEntity(data acceptance.TestData, outputValue string, includeRemovedProperty bool) string {
+	removedProperty := ""
+	if includeRemovedProperty {
+		removedProperty = `    removed_property = "remove-me"`
+	}
 	return fmt.Sprintf(`
 locals {
   storage_table_headers = {
@@ -1822,6 +1839,7 @@ resource "azapi_data_plane_resource" "test" {
   })
   body = {
     outputs = "%[3]s"
+%[4]s
   }
 
   depends_on = [
@@ -1834,7 +1852,7 @@ data "azapi_data_plane_resource" "read" {
   parent_id = azapi_data_plane_resource.test.parent_id
   headers   = local.storage_table_entity_headers
 }
-`, data.LocationPrimary, data.RandomString, outputValue)
+`, data.LocationPrimary, data.RandomString, outputValue, removedProperty)
 }
 
 func (r DataPlaneResource) appConfigKeyValuesSensitiveBody(data acceptance.TestData, value string) string {

@@ -100,6 +100,12 @@ resource "azapi_resource" "roleAssignment" {
   }
 }
 
+# Table entity writes use insert-or-replace semantics. Each create or update request
+# must include the complete desired entity content. Properties omitted from a write,
+# including properties added outside Terraform, are removed by that write.
+#
+# With sensitive_body_version, unchanged sensitive properties are omitted from update
+# requests and can therefore be removed by this replacement operation.
 resource "azapi_data_plane_resource" "entity" {
   type           = "Microsoft.Storage/storageAccounts/tableServices/tables/entities@2026-04-06"
   parent_id      = "${azapi_resource.storageAccount.name}.table.core.windows.net/${azapi_data_plane_resource.table.name}(PartitionKey='example',RowKey='state')"
