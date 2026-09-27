@@ -23,6 +23,9 @@ This data source can read Azure data plane resources.
 
 ### Optional
 
+- `headers` (Map of String) A map of headers to include in the request. Only allow-listed header names are accepted.
+
+	-> Header names must be one of (case-insensitive): `Accept`, `DataServiceVersion`, `MaxDataServiceVersion`, `x-ms-client-request-id`, `x-ms-version`.
 - `name` (String) Specifies the name (identifier segment) of the data plane resource.
 - `response_export_values` (Dynamic) The attribute can accept either a list or a map.
 
