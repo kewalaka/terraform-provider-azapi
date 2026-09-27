@@ -9,6 +9,7 @@ import (
 	"github.com/Azure/terraform-provider-azapi/internal/clients"
 	"github.com/Azure/terraform-provider-azapi/internal/docstrings"
 	"github.com/Azure/terraform-provider-azapi/internal/retry"
+	"github.com/Azure/terraform-provider-azapi/internal/services/common"
 	"github.com/Azure/terraform-provider-azapi/internal/services/customization"
 	"github.com/Azure/terraform-provider-azapi/internal/services/dynamic"
 	"github.com/Azure/terraform-provider-azapi/internal/services/myvalidator"
@@ -24,6 +25,15 @@ import (
 
 type DataPlaneResourceDataSource struct {
 	ProviderData *clients.Client
+}
+
+// DataPlaneReadHeaderAllowList is intentionally narrow: reads only need API versioning, OData negotiation and correlation headers.
+var DataPlaneReadHeaderAllowList = []string{
+	"Accept",
+	"DataServiceVersion",
+	"MaxDataServiceVersion",
+	"x-ms-client-request-id",
+	"x-ms-version",
 }
 
 var (
@@ -49,6 +59,7 @@ type DataPlaneResourceDataSourceModel struct {
 	Output               types.Dynamic    `tfsdk:"output"`
 	Timeouts             timeouts.Value   `tfsdk:"timeouts"`
 	Retry                retry.RetryValue `tfsdk:"retry"`
+	Headers              types.Map        `tfsdk:"headers"`
 }
 
 func (r *DataPlaneResourceDataSource) Metadata(ctx context.Context, request datasource.MetadataRequest, response *datasource.MetadataResponse) {
@@ -93,6 +104,14 @@ func (r *DataPlaneResourceDataSource) Schema(ctx context.Context, request dataso
 				MarkdownDescription: docstrings.Output("data.azapi_data_plane_resource"),
 			},
 			"retry": retry.RetryDsSchema(ctx),
+			"headers": schema.MapAttribute{
+				ElementType: types.StringType,
+				Optional:    true,
+				Validators: []validator.Map{
+					myvalidator.MapKeysAllowed(DataPlaneReadHeaderAllowList...),
+				},
+				MarkdownDescription: "A map of headers to include in the request. Only allow-listed header names are accepted.",
+			},
 		},
 		Blocks: map[string]schema.Block{
 			"timeouts": timeouts.Block(ctx),
@@ -140,8 +159,7 @@ func (r *DataPlaneResourceDataSource) Read(ctx context.Context, request datasour
 	ctx = tflog.SetField(ctx, "resource_id", id.ID())
 
 	client := r.ProviderData.DataPlaneClient
-	requestOptions := clients.RequestOptions{}
-	requestOptions.RetryOptions, requestOptions.LastRetryError = clients.NewRetryOptions(model.Retry)
+	requestOptions := dataPlaneResourceDataSourceRequestOptions(model)
 
 	var responseBody interface{}
 	if customizedResource := customization.GetCustomization(model.Type.ValueString()); customizedResource != nil && (*customizedResource).ReadFunc() != nil {
@@ -181,4 +199,12 @@ func (r *DataPlaneResourceDataSource) Read(ctx context.Context, request datasour
 	model.Type = basetypes.NewStringValue(fmt.Sprintf("%s@%s", id.AzureResourceType, id.ApiVersion))
 
 	response.Diagnostics.Append(response.State.Set(ctx, model)...)
+}
+
+func dataPlaneResourceDataSourceRequestOptions(model *DataPlaneResourceDataSourceModel) clients.RequestOptions {
+	requestOptions := clients.RequestOptions{
+		Headers: common.AsMapOfString(model.Headers),
+	}
+	requestOptions.RetryOptions, requestOptions.LastRetryError = clients.NewRetryOptions(model.Retry)
+	return requestOptions
 }
